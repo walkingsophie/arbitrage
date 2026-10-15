@@ -30,6 +30,7 @@ def detect_arbitrage(exchange_rates):
                 pair = f"{currency_from}/{currency_to}"
                 if pair in exchange_rates:
                     rate_matrix[i][j] = exchange_rates[pair]
+                    rate_matrix[j][i] = 1 /exchange_rates[pair]
                 else:
                     # If no direct exchange rate is available, set it to 0
                     rate_matrix[i][j] = 0.0
