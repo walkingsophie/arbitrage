@@ -1,20 +1,17 @@
 import numpy as np
 
-def detect_arbitrage(exchange_rates):
+def exchange_rate_to_matrix(exchange_rates):
     """
-    Detects arbitrage opportunities in a given set of exchange rates.
+    Converts a dictionary of exchange rates into a matrix representation.
 
     Parameters:
     exchange_rates (dict): A dictionary where keys are currency pairs (e.g., 'USD/EUR') 
                            and values are the corresponding exchange rates.
 
     Returns:
-    list: A list of arbitrage opportunities found, each represented as a tuple 
-          (currency_pair, profit_percentage).
+    np.ndarray: A 2D numpy array representing the exchange rate matrix.
+    list: A list of unique currencies corresponding to the rows and columns of the matrix.
     """
-    arbitrage_opportunities = []
-
-    # Convert exchange rates to a matrix for easier manipulation
     currencies = list(set([pair.split('/')[0] for pair in exchange_rates.keys()] + 
                           [pair.split('/')[1] for pair in exchange_rates.keys()]))
     
@@ -35,27 +32,123 @@ def detect_arbitrage(exchange_rates):
                     # If no direct exchange rate is available, set it to 0
                     rate_matrix[i][j] = 0.0
 
-    # Use the Bellman-Ford algorithm to detect negative cycles (arbitrage opportunities)
-    for start_currency in range(num_currencies):
-        distances = np.full(num_currencies, np.inf)
-        distances[start_currency] = 0
+    return rate_matrix, currencies  
 
-        for _ in range(num_currencies - 1):
-            for u in range(num_currencies):
-                for v in range(num_currencies):
-                    if rate_matrix[u][v] > 0:  # Only consider valid exchange rates
-                        new_distance = distances[u] - np.log(rate_matrix[u][v])
-                        if new_distance < distances[v]:
-                            distances[v] = new_distance
+def exchange_matrix_to_dict(rate_matrix, currencies):
+    """
+    Converts a matrix representation of exchange rates back into a dictionary.
 
-        # Check for negative cycles
-        for u in range(num_currencies):
-            for v in range(num_currencies):
-                if rate_matrix[u][v] > 0:
-                    new_distance = distances[u] - np.log(rate_matrix[u][v])
-                    if new_distance < distances[v]:
-                        profit_percentage = (np.exp(-new_distance) - 1) * 100
-                        arbitrage_opportunities.append((f"{currencies[u]}/{currencies[v]}", profit_percentage))
+    Parameters:
+    rate_matrix (np.ndarray): A 2D numpy array representing the exchange rate matrix.
+    currencies (list): A list of unique currencies corresponding to the rows and columns of the matrix.
+
+    Returns:
+    dict: A dictionary where keys are currency pairs (e.g., 'USD/EUR') 
+          and values are the corresponding exchange rates.
+    """
+    exchange_rates = {}
+    num_currencies = len(currencies)
+
+    for i in range(num_currencies):
+        for j in range(num_currencies):
+            if i != j and rate_matrix[i][j] > 0:
+                pair = f"{currencies[i]}/{currencies[j]}"
+                exchange_rates[pair] = rate_matrix[i][j]
+
+    return exchange_rates
+
+def best_exchange_path(exchange_rates, start_currency, end_currency):
+    """
+    Finds the best exchange path from start_currency to end_currency using the given exchange rates.
+
+    Parameters:
+    exchange_rates (dict): A dictionary where keys are currency pairs (e.g., 'USD/EUR') 
+                           and values are the corresponding exchange rates.
+    start_currency (str): The currency to start from.
+    end_currency (str): The currency to end at.
+
+    Returns:
+    tuple: A tuple containing the best exchange rate and the path taken as a list of currencies.
+           If no path exists, returns (None, []).
+    """
+    rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
+    num_currencies = len(currencies)
+
+    # Create a mapping from currency to index
+    currency_index = {currency: index for index, currency in enumerate(currencies)}
+
+    if start_currency not in currency_index or end_currency not in currency_index:
+        return None, []  # Invalid currencies
+
+    start_index = currency_index[start_currency]
+    end_index = currency_index[end_currency]
+
+    # Use Dijkstra's algorithm to find the best path
+    distances = np.full(num_currencies, -np.inf)
+    distances[start_index] = 1.0  # Start with an exchange rate of 1
+    previous = [None] * num_currencies
+
+    for _ in range(num_currencies - 1):
+        for i in range(num_currencies):
+            for j in range(num_currencies):
+                if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
+                    distances[j] = distances[i] * rate_matrix[i][j]
+                    previous[j] = i
+
+    # Reconstruct the path
+    path = []
+    current_index = end_index
+    while current_index is not None:
+        path.append(currencies[current_index])
+        current_index = previous[current_index]
+
+    path.reverse()
+
+    if distances[end_index] == -np.inf:
+        return None, []  # No path found
+
+    return distances[end_index], path
+
+def detect_arbitrage(exchange_rates):
+    """
+    Detects arbitrage opportunities in the given exchange rates.
+
+    Parameters:
+    exchange_rates (dict): A dictionary where keys are currency pairs (e.g., 'USD/EUR') 
+                           and values are the corresponding exchange rates.
+
+    Returns:
+    list: A list of arbitrage opportunities, each represented as a tuple containing the 
+          starting currency, the path taken, and the profit percentage.
+    """
+    rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
+    num_currencies = len(currencies)
+
+    # Use the Bellman-Ford algorithm to detect negative cycles
+    distances = np.full(num_currencies, -np.inf)
+    distances[0] = 1.0  # Start with an exchange rate of 1
+    previous = [None] * num_currencies
+
+    for _ in range(num_currencies - 1):
+        for i in range(num_currencies):
+            for j in range(num_currencies):
+                if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
+                    distances[j] = distances[i] * rate_matrix[i][j]
+                    previous[j] = i
+
+    # Check for negative cycles
+    arbitrage_opportunities = []
+    for i in range(num_currencies):
+        for j in range(num_currencies):
+            if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
+                # Found an arbitrage opportunity
+                path = []
+                current_index = j
+                while current_index is not None:
+                    path.append(currencies[current_index])
+                    current_index = previous[current_index]
+                path.reverse()
+                profit_percentage = (distances[j] - 1) * 100
+                arbitrage_opportunities.append((currencies[i], path, profit_percentage))
 
     return arbitrage_opportunities
-
