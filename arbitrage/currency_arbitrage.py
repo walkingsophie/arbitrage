@@ -128,9 +128,10 @@ def detect_arbitrage(exchange_rates):
     """
     rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
     num_currencies = len(currencies)
+    
+    rate_matrix = rate_matrix * (1 - np.eye(num_currencies)) # Use the rate matrix without identity matrix to avoid self-loops in the arbitrage detection
 
-    # Use the Bellman-Ford algorithm to detect negative cycles
-    log_rate_matrix = -np.log(rate_matrix)  # Use negative log to convert multiplication to addition
+    log_rate_matrix = -np.log(rate_matrix + 1e-10)  # Use negative log to convert multiplication to addition
 
     distances = np.full(num_currencies, np.inf)
     distances[0] = 0  # Start from the first currency
