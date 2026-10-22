@@ -1,4 +1,4 @@
-from arbitrage import currency_arbitrage
+from arbitrage import detect_arbitrage, best_exchange_path
 
 currency_rates = {
     'GBP/USD': 1.38,
@@ -12,3 +12,9 @@ currency_rates = {
     'JPY/GBP': 0.0067,
     'GBP/JPY': 150.0,
     }
+
+# Convert EUR to JPY
+start_currency = 'EUR'
+end_currency = 'JPY'
+exchange_rate, path = best_exchange_path(currency_rates, start_currency, end_currency)
+print(f"Best exchange path from {start_currency} to {end_currency}: {' -> '.join(path)} with an exchange rate of {exchange_rate:.4f}")

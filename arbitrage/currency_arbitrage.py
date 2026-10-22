@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 def exchange_rate_to_matrix(exchange_rates):
     """
@@ -70,6 +71,11 @@ def best_exchange_path(exchange_rates, start_currency, end_currency):
     tuple: A tuple containing the best exchange rate and the path taken as a list of currencies.
            If no path exists, returns (None, []).
     """
+
+    if detect_arbitrage(exchange_rates) != []:
+        warnings.warn("Arbitrage detected in exhange rates, thus there may be paths that yield infinite profit. Returning None for best exchange path.", UserWarning)
+        return None, []  # Arbitrage detected, no valid path
+
     rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
     num_currencies = len(currencies)
 
