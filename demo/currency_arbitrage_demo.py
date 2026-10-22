@@ -1,15 +1,14 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from arbitrage.currency_arbitrage import detect_arbitrage
+from arbitrage import currency_arbitrage
 
 currency_rates = {
+    'GBP/USD': 1.38,
+    'USD/GBP': 0.72,
     'USD/EUR': 0.85,
+    'EUR/USD': 1.18,
+    'GBP/EUR': 1.11,
+    'EUR/GBP': 0.90,
     'USD/JPY': 110.0,
-    'EUR/JPY': 130.0,
+    'JPY/USD': 0.0091,
+    'JPY/GBP': 0.0067,
+    'GBP/JPY': 150.0,
     }
-
-arbitrage_opportunities = detect_arbitrage(currency_rates)
-print(arbitrage_opportunities)

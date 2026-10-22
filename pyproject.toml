@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arbitrage"
+version = "0.0.3"
+description = "A package that attempts to find arbitrage in various situations."
+requires-python = ">=3.10"
+dependencies = [
+    "numpy"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["arbitrage*"]
