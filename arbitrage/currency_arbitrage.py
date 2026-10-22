@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+import math
 
 def exchange_rate_to_matrix(exchange_rates):
     """
@@ -13,8 +14,9 @@ def exchange_rate_to_matrix(exchange_rates):
     np.ndarray: A 2D numpy array representing the exchange rate matrix.
     list: A list of unique currencies corresponding to the rows and columns of the matrix.
     """
-    currencies = list(set([pair.split('/')[0] for pair in exchange_rates.keys()] + 
-                          [pair.split('/')[1] for pair in exchange_rates.keys()]))
+    currencies = sorted(
+        {currency for pair in exchange_rates for currency in pair.split('/')}
+    )
     
     num_currencies = len(currencies)
     rate_matrix = np.zeros((num_currencies, num_currencies))
@@ -72,47 +74,57 @@ def best_exchange_path(exchange_rates, start_currency, end_currency):
            If no path exists, returns (None, []).
     """
 
-    if detect_arbitrage(exchange_rates) != []:
-        warnings.warn("Arbitrage detected in exhange rates, thus there may be paths that yield infinite profit. Returning None for best exchange path.", UserWarning)
+    arbitrage_cycle, _ = detect_arbitrage(exchange_rates)
+    if arbitrage_cycle:
+        warnings.warn(
+            "Arbitrage detected in exchange rates; no finite best exchange path exists.",
+            UserWarning,
+        )
         return None, []  # Arbitrage detected, no valid path
 
     rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
     num_currencies = len(currencies)
 
-    # Create a mapping from currency to index
-    currency_index = {currency: index for index, currency in enumerate(currencies)}
+    if start_currency not in currencies or end_currency not in currencies:
+        return None, []
 
-    if start_currency not in currency_index or end_currency not in currency_index:
-        return None, []  # Invalid currencies
-
-    start_index = currency_index[start_currency]
-    end_index = currency_index[end_currency]
-
-    # Use Dijkstra's algorithm to find the best path
+    # Initialize distances and previous nodes
     distances = np.full(num_currencies, -np.inf)
-    distances[start_index] = 1.0  # Start with an exchange rate of 1
     previous = [None] * num_currencies
 
+    start_index = currencies.index(start_currency)
+    end_index = currencies.index(end_currency)
+
+    distances[start_index] = 0  # Start from the start_currency
+
+    # Relax edges up to num_currencies - 1 times, using only paths from the prior pass.
     for _ in range(num_currencies - 1):
+        next_distances = distances.copy()
+        next_previous = previous.copy()
         for i in range(num_currencies):
             for j in range(num_currencies):
-                if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
-                    distances[j] = distances[i] * rate_matrix[i][j]
-                    previous[j] = i
+                if rate_matrix[i][j] > 0 and distances[i] > -np.inf:
+                    candidate = distances[i] + np.log(rate_matrix[i][j])
+                    if candidate > next_distances[j]:
+                        next_distances[j] = candidate
+                        next_previous[j] = i
+        if np.array_equal(next_distances, distances):
+            break
+        distances = next_distances
+        previous = next_previous
 
-    # Reconstruct the path
+    # Reconstruct the best path
     path = []
-    current_index = end_index
-    while current_index is not None:
-        path.append(currencies[current_index])
-        current_index = previous[current_index]
-
+    current = end_index
+    while current is not start_index:
+        if previous[current] is None:
+            return None, []  # No path exists
+        path.append(currencies[current])
+        current = previous[current]
+    path.append(currencies[start_index])
     path.reverse()
 
-    if distances[end_index] == -np.inf:
-        return None, []  # No path found
-
-    return distances[end_index], path
+    return math.exp(distances[end_index]), path
 
 def detect_arbitrage(exchange_rates):
     """
@@ -123,38 +135,52 @@ def detect_arbitrage(exchange_rates):
                            and values are the corresponding exchange rates.
 
     Returns:
-    list: A list of currencies involved in the arbitrage cycle, if any. 
-          Returns an empty list if no arbitrage is detected.
+    tuple: A tuple containing the list of currencies involved in the arbitrage cycle, if any, and the profit margin.
+           Returns an empty list and 0 if no arbitrage is detected.
     """
     rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
     num_currencies = len(currencies)
-    
-    rate_matrix = rate_matrix * (1 - np.eye(num_currencies)) # Use the rate matrix without identity matrix to avoid self-loops in the arbitrage detection
 
-    log_rate_matrix = -np.log(rate_matrix + 1e-10)  # Use negative log to convert multiplication to addition
+    # Convert rates to log space for Bellman-Ford algorithm
+    log_rate_matrix = np.full_like(rate_matrix, np.inf)
+    positive_rates = rate_matrix > 0
+    log_rate_matrix[positive_rates] = -np.log(rate_matrix[positive_rates])
 
-    distances = np.full(num_currencies, np.inf)
-    distances[0] = 0  # Start from the first currency
+    # Initialize distances and predecessors
+    distances = np.zeros(num_currencies)
+    predecessors = [None] * num_currencies
 
-    for _ in range(num_currencies - 1):
+    # Initializing all distances to zero is equivalent to adding a super-source,
+    # so cycles are detected even in disconnected components.
+    updated_currency = None
+    for _ in range(num_currencies):
+        updated_currency = None
         for i in range(num_currencies):
             for j in range(num_currencies):
-                if distances[i] + log_rate_matrix[i][j] < distances[j]:
+                if (log_rate_matrix[i][j] < np.inf
+                        and distances[i] + log_rate_matrix[i][j] < distances[j] - 1e-12):
                     distances[j] = distances[i] + log_rate_matrix[i][j]
+                    predecessors[j] = i
+                    updated_currency = j
+        if updated_currency is None:
+            return [], 0
 
-    # Check for negative cycles
-    for i in range(num_currencies):
-        for j in range(num_currencies):
-            if distances[i] + log_rate_matrix[i][j] < distances[j]:
-                # Arbitrage detected, reconstruct the cycle
-                cycle = []
-                visited = set()
-                current_index = j
-                while current_index not in visited:
-                    visited.add(current_index)
-                    cycle.append(currencies[current_index])
-                    current_index = np.argmin(log_rate_matrix[current_index])  # Move to the next currency in the cycle
-                cycle.append(currencies[current_index])  # Close the cycle
-                return cycle[::-1]  # Return the cycle in correct order
+    # Follow predecessors into the cycle, then reverse the predecessor chain.
+    current = updated_currency
+    for _ in range(num_currencies):
+        current = predecessors[current]
 
-    return []  # No arbitrage detected
+    cycle = [current]
+    next_currency = predecessors[current]
+    while next_currency != current:
+        cycle.append(next_currency)
+        next_currency = predecessors[next_currency]
+    cycle.append(current)
+    cycle.reverse()
+
+    cycle_log_rate = sum(
+        log_rate_matrix[source][target]
+        for source, target in zip(cycle, cycle[1:])
+    )
+    profit_margin = math.exp(-cycle_log_rate) - 1
+    return [currencies[index] for index in cycle], profit_margin
