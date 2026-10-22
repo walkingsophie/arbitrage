@@ -130,7 +130,7 @@ def detect_arbitrage(exchange_rates):
     num_currencies = len(currencies)
 
     # Use the Bellman-Ford algorithm to detect negative cycles
-    log_rate_matrix = -np.log(rate_matrix + 1e-10)  # Use log to convert multiplication to addition
+    log_rate_matrix = -np.log(rate_matrix)  # Use negative log to convert multiplication to addition
 
     distances = np.full(num_currencies, np.inf)
     distances[0] = 0  # Start from the first currency

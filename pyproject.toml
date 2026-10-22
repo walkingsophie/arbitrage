@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arbitrage"
-version = "0.0.5"
+version = "0.0.6"
 description = "A package that attempts to find arbitrage in various situations."
 requires-python = ">=3.10"
 dependencies = [

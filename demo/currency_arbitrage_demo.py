@@ -1,15 +1,15 @@
 from arbitrage import detect_arbitrage, best_exchange_path
 
 currency_rates = {
-    'GBP/USD': 1.38,
+    'GBP/USD': 1.37,
     'USD/GBP': 0.72,
     'USD/EUR': 0.85,
-    'EUR/USD': 1.18,
-    'GBP/EUR': 1.11,
+    'EUR/USD': 1.17,
+    'GBP/EUR': 1.10,
     'EUR/GBP': 0.90,
-    'USD/JPY': 110.0,
+    'USD/JPY': 109.0,
     'JPY/USD': 0.0091,
-    'JPY/GBP': 0.0067,
+    'JPY/GBP': 0.0066,
     'GBP/JPY': 150.0,
     }
 
@@ -22,4 +22,7 @@ if arbitrage_cycle:
 start_currency = 'EUR'
 end_currency = 'JPY'
 exchange_rate, path = best_exchange_path(currency_rates, start_currency, end_currency)
-print(f"Best exchange path from {start_currency} to {end_currency}: {' -> '.join(path)} with an exchange rate of {exchange_rate:.4f}")
+if exchange_rate is not None:
+    print(f"Best exchange path from {start_currency} to {end_currency}: {' -> '.join(path)} with an exchange rate of {exchange_rate:.4f}")
+else:
+    print(f"No exchange path found from {start_currency} to {end_currency}.")
