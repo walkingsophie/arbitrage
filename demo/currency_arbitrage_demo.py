@@ -13,6 +13,11 @@ currency_rates = {
     'GBP/JPY': 150.0,
     }
 
+# Check for arbitrage opportunities
+arbitrage_cycle = detect_arbitrage(currency_rates)
+if arbitrage_cycle:
+    print(f"Arbitrage detected! Cycle: {' -> '.join(arbitrage_cycle)}")
+
 # Convert EUR to JPY
 start_currency = 'EUR'
 end_currency = 'JPY'

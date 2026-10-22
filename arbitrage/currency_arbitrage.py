@@ -116,44 +116,44 @@ def best_exchange_path(exchange_rates, start_currency, end_currency):
 
 def detect_arbitrage(exchange_rates):
     """
-    Detects arbitrage opportunities in the given exchange rates.
+    Detects if there is an arbitrage opportunity in the given exchange rates.
 
     Parameters:
     exchange_rates (dict): A dictionary where keys are currency pairs (e.g., 'USD/EUR') 
                            and values are the corresponding exchange rates.
 
     Returns:
-    list: A list of arbitrage opportunities, each represented as a tuple containing the 
-          starting currency, the path taken, and the profit percentage.
+    list: A list of currencies involved in the arbitrage cycle, if any. 
+          Returns an empty list if no arbitrage is detected.
     """
     rate_matrix, currencies = exchange_rate_to_matrix(exchange_rates)
     num_currencies = len(currencies)
 
     # Use the Bellman-Ford algorithm to detect negative cycles
-    distances = np.full(num_currencies, -np.inf)
-    distances[0] = 1.0  # Start with an exchange rate of 1
-    previous = [None] * num_currencies
+    log_rate_matrix = -np.log(rate_matrix + 1e-10)  # Use log to convert multiplication to addition
+
+    distances = np.full(num_currencies, np.inf)
+    distances[0] = 0  # Start from the first currency
 
     for _ in range(num_currencies - 1):
         for i in range(num_currencies):
             for j in range(num_currencies):
-                if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
-                    distances[j] = distances[i] * rate_matrix[i][j]
-                    previous[j] = i
+                if distances[i] + log_rate_matrix[i][j] < distances[j]:
+                    distances[j] = distances[i] + log_rate_matrix[i][j]
 
     # Check for negative cycles
-    arbitrage_opportunities = []
     for i in range(num_currencies):
         for j in range(num_currencies):
-            if rate_matrix[i][j] > 0 and distances[i] * rate_matrix[i][j] > distances[j]:
-                # Found an arbitrage opportunity
-                path = []
+            if distances[i] + log_rate_matrix[i][j] < distances[j]:
+                # Arbitrage detected, reconstruct the cycle
+                cycle = []
+                visited = set()
                 current_index = j
-                while current_index is not None:
-                    path.append(currencies[current_index])
-                    current_index = previous[current_index]
-                path.reverse()
-                profit_percentage = (distances[j] - 1) * 100
-                arbitrage_opportunities.append((currencies[i], path, profit_percentage))
+                while current_index not in visited:
+                    visited.add(current_index)
+                    cycle.append(currencies[current_index])
+                    current_index = np.argmin(log_rate_matrix[current_index])  # Move to the next currency in the cycle
+                cycle.append(currencies[current_index])  # Close the cycle
+                return cycle[::-1]  # Return the cycle in correct order
 
-    return arbitrage_opportunities
+    return []  # No arbitrage detected
